@@ -1,55 +1,67 @@
 package main
 
+import (
+	"fmt"
+)
+
 // MergeSort performs the merge sort algorithm.
 // Please supplement this function to accomplish the home work.
 func MergeSort(src []int64) {
-	Merge_Sort(src, 0, len(src)-1, nil)
+	buffer := make([]int64, len(src))
+	Merge_Sort(src, buffer, nil)
 }
 
-func Merge_Sort(src []int64, p int, r int, myChan chan int) {
-	if p < r {
-		q := (p + r) >> 1
+func Merge_Sort(src []int64, buffer []int64, myChan chan int) {
+	n := len(src)
+	mid := n >> 1
+	if mid > 5 {
 		recv := make(chan int)
-		go Merge_Sort(src, p, q,recv )
-		Merge_Sort(src, q+1, r, nil)
+
+		go Merge_Sort(src[:mid], buffer[:mid], recv )
+		Merge_Sort(src[mid:], buffer[mid:], nil)
 		<- recv
-		Merge(src, p, q, r)
+		Merge(src[:mid], src[mid:], buffer)
+		copy(src, buffer)
+	} else {
+		for i, j := 1, 0; i < n; i++  {
+			temp := src[i]
+			for j = i-1; j >= 0 ; j-- {
+				if src[j] > temp {
+					src[j+1] = src[j]
+				} else {
+					break
+				}
+			}
+			src[j+1] = temp
+		}
 	}
 	if myChan != nil {
 		myChan <- 0
 	}
 }
 
-const INT_MAX = int64(^uint64(0) >> 1)
-
-func Merge(src []int64, p, q, r int) {
-		m := q - p + 1
-		n := r - q
-		ml := make([]int64, m+1)
-		nl := make([]int64, n+1)
-
-		for i := 0; i < m; i++ {
-			ml[i] = src[p+i]
+func Merge(ll []int64, rr[]int64, buffer []int64) {
+	m := len(ll)
+	n := len(rr)
+	i := 0
+	j := 0
+	for k := 0; k < m+n; k++ {
+		if i >= m {
+			buffer[k] = rr[j]
+			j++
+			continue
 		}
-		for i := 0; i < n; i++ {
-			nl[i] = src[q+i+1]
+		if j >= n {
+			buffer[k] = ll[i]
+			i++
+			continue
 		}
-		ml[m] = INT_MAX
-		nl[n] = INT_MAX
-
-		i := 0
-		j := 0
-		for k := p; k <= r; k++ {
-			if ml[i] < nl[j] {
-				src[k] = ml[i]
-				i++
-			} else {
-				src[k] = nl[j]
+		if ll[i] < rr[j]  {
+			buffer[k] = ll[i]
+			i++
+		} else {
+				buffer[k] = rr[j]
 				j++
-			}
 		}
 	}
-//func  main() {
-//	s := []int64{2,3,4,6,2,6,3,6,3,6,4,67,25632,32,252,235,235}
-//	MergeSort(s)
-//}
+}

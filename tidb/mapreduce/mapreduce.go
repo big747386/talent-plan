@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"encoding/json"
 	"hash/fnv"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path"
 	"runtime"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -108,8 +111,44 @@ func (c *MRCluster) worker() {
 					SafeClose(fs[i], bs[i])
 				}
 			} else {
-				// YOUR CODE HERE :)
-				panic("YOUR CODE HERE")
+				// YOUR CODE HERE :
+				//panic("YOUR CODE HERE")
+				pair := make(map[string][]string)
+				var keys []string
+				for i := 0; i < t.nReduce; i ++  {
+					fileName := reduceName(t.dataDir, t.jobName, t.taskNumber, i)
+					value, err := ioutil.ReadFile(fileName)
+					if err != nil {
+						log.Fatal(err)
+					}
+					str := string(value)
+					dec := json.NewDecoder(strings.NewReader(str))
+					for {
+						var kv KeyValue
+						if err := dec.Decode(&kv); err == io.EOF{
+							break;
+						} else if err != nil {
+							log.Fatal(err)
+						}
+						if _, ok := pair[kv.Key]; !ok {
+							keys = append(keys, kv.Key)
+						}
+						pair[kv.Key] = append(pair[kv.Key], kv.Value)
+					}
+					sort.Strings(keys)
+					out, err := os.Create(mergeName(t.dataDir, t.jobName, i))
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					enc :=json.NewEncoder(out)
+					for _, key := range keys {
+						if err = enc.Encode(KeyValue{key, t.reduceF(key, pair[key])}); err != nil {
+							log.Fatal(err)
+						}
+					}
+					out.Close()
+				}
 			}
 			t.wg.Done()
 		case <-c.exit:
@@ -156,7 +195,24 @@ func (c *MRCluster) run(jobName, dataDir string, mapF MapF, reduceF ReduceF, map
 
 	// reduce phase
 	// YOUR CODE HERE :D
-	panic("YOUR CODE HERE")
+	//panic("YOUR CODE HERE")
+	tasks = make([]*task, 0, nReduce)
+	for i := 0; i < nReduce; i++ {
+		t := &task{
+			dataDir:	dataDir,
+			jobName:	jobName,
+			phase:	    reducePhase,
+			taskNumber:	i,
+			nReduce:	nReduce,
+			reduceF:	reduceF,
+		}
+		t.wg.Add(1)
+		tasks = append(tasks, t)
+		go func() {c.taskCh <- t}()
+	}
+	for _, t := range tasks {
+		t.wg.Wait()
+	}
 }
 
 func ihash(s string) int {
